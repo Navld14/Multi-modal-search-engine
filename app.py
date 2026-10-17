@@ -3,6 +3,10 @@ import torch
 import clip
 from PIL import Image
 import numpy as np
+from sentence_transformers import SentenceTransformer
+from PIL import Image
+import numpy as np
+
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -38,11 +42,10 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
 
 # ── Load CLIP model (cached) ───────────────────────────────────────────────────
-@st.cache_resource(show_spinner="Loading CLIP model...")
+
+@st.cache_resource(show_spinner="Loading model...")
 def load_model():
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model, preprocess = clip.load("ViT-B/32", device=device)
-    return model, preprocess, device
+    return SentenceTransformer('clip-ViT-B-32')
 
 
 # ── Encode images ──────────────────────────────────────────────────────────────
