@@ -1,14 +1,15 @@
 # 🔍 Multimodal Search Engine
 
-Search through your images using **plain English** — no labels, no tags, no metadata needed. Powered by OpenAI's CLIP model which understands both images and text in the same vector space.
+Search through your images using **plain English** — powered by CLIP embeddings.
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue?style=flat-square&logo=python)
-![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red?style=flat-square&logo=pytorch)
-![CLIP](https://img.shields.io/badge/OpenAI-CLIP-412991?style=flat-square)
+![CLIP](https://img.shields.io/badge/CLIP-sentence--transformers-412991?style=flat-square)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.35-red?style=flat-square&logo=streamlit)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)
 
----
+> ⚠️ **Note:** This project requires significant RAM (~1GB) to load the CLIP model.
+> It is best run locally or on a paid cloud instance.
+> Cloud deployment on free tiers is not supported due to memory constraints.
 
 ## 🎯 What It Does
 
