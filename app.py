@@ -1,12 +1,7 @@
 import streamlit as st
-import torch
-import clip
-from PIL import Image
-import numpy as np
 from sentence_transformers import SentenceTransformer
 from PIL import Image
 import numpy as np
-
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -29,27 +24,22 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 }
 .hero p { color: #888; font-size: 1rem; margin-top: -6px; }
 
-.result-card { background: #111; border: 1px solid #222; border-radius: 12px; padding: 8px; text-align: center; }
-.score-badge { background: #1e1e2e; color: #a78bfa; font-size: 0.75rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; display: inline-block; margin-top: 6px; }
-
 .stat-box { background: #111; border: 1px solid #222; border-radius: 10px; padding: 16px; text-align: center; }
 .stat-value { font-size: 1.8rem; font-weight: 700; color: #a78bfa; }
 .stat-label { font-size: 0.75rem; color: #555; text-transform: uppercase; letter-spacing: 1px; }
-
 .section-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; color: #555; margin-bottom: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
 
-# ── Load CLIP model (cached) ───────────────────────────────────────────────────
-
-@st.cache_resource(show_spinner="Loading model...")
+# ── Load model ─────────────────────────────────────────────────────────────────
+@st.cache_resource(show_spinner="Loading CLIP model...")
 def load_model():
     return SentenceTransformer('clip-ViT-B-32')
 
 
 # ── Encode images ──────────────────────────────────────────────────────────────
-def encode_images(uploaded_files, model, preprocess, device):
+def encode_images(uploaded_files, model):
     embeddings = []
     names = []
     images = []
@@ -57,11 +47,9 @@ def encode_images(uploaded_files, model, preprocess, device):
     for f in uploaded_files:
         try:
             img = Image.open(f).convert("RGB")
-            tensor = preprocess(img).unsqueeze(0).to(device)
-            with torch.no_grad():
-                emb = model.encode_image(tensor)
-                emb = emb / emb.norm(dim=-1, keepdim=True)
-            embeddings.append(emb.cpu().numpy())
+            emb = model.encode(img, convert_to_numpy=True)
+            emb = emb / np.linalg.norm(emb)
+            embeddings.append(emb)
             names.append(f.name)
             images.append(img)
         except Exception:
@@ -71,19 +59,14 @@ def encode_images(uploaded_files, model, preprocess, device):
 
 
 # ── Encode text ────────────────────────────────────────────────────────────────
-def encode_text(query, model, device):
-    tokens = clip.tokenize([query]).to(device)
-    with torch.no_grad():
-        emb = model.encode_text(tokens)
-        emb = emb / emb.norm(dim=-1, keepdim=True)
-    return emb.cpu().numpy()
+def encode_text(query, model):
+    emb = model.encode(query, convert_to_numpy=True)
+    return emb / np.linalg.norm(emb)
 
 
 # ── Search ─────────────────────────────────────────────────────────────────────
 def search(query_emb, image_embs, names, images, top_k=6):
-    scores = (image_embs @ query_emb.T).squeeze()
-    if scores.ndim == 0:
-        scores = np.array([float(scores)])
+    scores = image_embs @ query_emb
     top_indices = np.argsort(scores)[::-1][:top_k]
     return [(names[i], images[i], float(scores[i])) for i in top_indices]
 
@@ -92,18 +75,17 @@ def search(query_emb, image_embs, names, images, top_k=6):
 st.markdown("""
 <div class='hero'>
     <h1>🔍 Multimodal Search Engine</h1>
-    <p>Search your images using natural language — powered by OpenAI CLIP</p>
+    <p>Search your images using natural language — powered by CLIP</p>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
 
-model, preprocess, device = load_model()
+model = load_model()
 
-# Sidebar
 with st.sidebar:
     st.markdown("### 📁 Upload Images")
-    st.caption("Upload any images (JPG, PNG, WEBP). The more you upload, the better!")
+    st.caption("Upload any images (JPG, PNG, WEBP).")
 
     uploaded_files = st.file_uploader(
         "Choose images",
@@ -128,7 +110,6 @@ with st.sidebar:
         - `night scene with lights`
         """)
 
-# Main area
 if not uploaded_files:
     st.markdown("""
     <div style='text-align:center; padding:4rem 0; color:#333'>
@@ -139,7 +120,7 @@ if not uploaded_files:
     """, unsafe_allow_html=True)
 else:
     with st.spinner("🧠 Encoding images with CLIP..."):
-        image_embs, names, images = encode_images(uploaded_files, model, preprocess, device)
+        image_embs, names, images = encode_images(uploaded_files, model)
 
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -154,8 +135,8 @@ else:
         </div>""", unsafe_allow_html=True)
     with c3:
         st.markdown(f"""<div class='stat-box'>
-            <div class='stat-value'>ViT-B/32</div>
-            <div class='stat-label'>CLIP Model</div>
+            <div class='stat-value'>CLIP</div>
+            <div class='stat-label'>Model</div>
         </div>""", unsafe_allow_html=True)
 
     st.markdown("---")
@@ -168,7 +149,7 @@ else:
 
     if query:
         with st.spinner("Searching..."):
-            query_emb = encode_text(query, model, device)
+            query_emb = encode_text(query, model)
             results = search(query_emb, image_embs, names, images, top_k=top_k)
             filtered = [(n, img, s) for n, img, s in results if s >= threshold]
 
@@ -185,7 +166,7 @@ else:
                     st.markdown(f"""
                     <div style='text-align:center; margin-bottom:12px'>
                         <div style='font-size:0.75rem; color:#888'>{name}</div>
-                        <span class='score-badge' style='color:{bar_color}'>Match: {score_pct}%</span>
+                        <div style='background:#1e1e2e; color:{bar_color}; font-size:0.75rem; font-weight:600; padding:3px 10px; border-radius:999px; display:inline-block; margin-top:6px'>Match: {score_pct}%</div>
                     </div>
                     """, unsafe_allow_html=True)
     else:
@@ -196,4 +177,4 @@ else:
                 st.image(img, caption=f.name, use_column_width=True)
 
 st.markdown("---")
-st.markdown("<p style='text-align:center; color:#333; font-size:0.8rem'>Built with Python · OpenAI CLIP · PyTorch · Streamlit</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; color:#333; font-size:0.8rem'>Built with Python · CLIP · sentence-transformers · Streamlit</p>", unsafe_allow_html=True)
